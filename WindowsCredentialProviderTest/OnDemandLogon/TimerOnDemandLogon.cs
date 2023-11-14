@@ -48,6 +48,7 @@ namespace WindowsCredentialProviderTest.OnDemandLogon
             }
             else
             {
+                // count down is finished
                 timerOnDemandLogon.timer.Change(int.MaxValue, int.MaxValue);
                 timerOnDemandLogon.credentialProviderEvents.CredentialsChanged(timerOnDemandLogon.adviceContext);
                 timerOnDemandLogon.OnTimerEnded();
