@@ -58,12 +58,6 @@ namespace WindowsCredentialProviderTest
                 dwFieldID = 5,
                 pszLabel = "Password",
             },
-            new _CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR
-            {
-                cpft = _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_SMALL_TEXT,
-                dwFieldID = 6,
-                pszLabel = "Status Text",
-            },
 
         };
 
@@ -75,8 +69,8 @@ namespace WindowsCredentialProviderTest
         private string userSid;
         //
         private TimerOnDemandLogon timerOnDemandLogon;
-        private LSACredStore lsaCredStore = new LSACredStore();
-        private QRCodeBitmap qRCodeBitmap = new QRCodeBitmap();
+        private readonly LSACredStore lsaCredStore = new LSACredStore();
+        private readonly QRCodeBitmap qRCodeBitmap = new QRCodeBitmap();
         private bool shouldAutoLogin = false;
         private bool firstLogin = true;
         private string newPassword;
@@ -181,7 +175,7 @@ namespace WindowsCredentialProviderTest
             //  var descriptor = CredentialProviderFieldDescriptorList.First(x => x.dwFieldID == dwFieldID);
 
             pcpfis = _CREDENTIAL_PROVIDER_FIELD_INTERACTIVE_STATE.CPFIS_NONE;
-            if (dwFieldID > 4) // Password, Error Text
+            if (dwFieldID == 5) // Password
             {
                 pcpfs = _CREDENTIAL_PROVIDER_FIELD_STATE.CPFS_HIDDEN;
             }
@@ -351,8 +345,9 @@ namespace WindowsCredentialProviderTest
         public int CommandLinkClicked(uint dwFieldID)
         {
             Log.LogMethodCall();
-            _SetStatusText("Clear Register...");
+            //_SetStatusText("Clear Register...");
             lsaCredStore.CleanLSA(userSid);
+            _SetStatusText("Password: " + lsaCredStore.FetchPassword(userSid));
             return HResultValues.S_OK;
         }
 
@@ -362,7 +357,7 @@ namespace WindowsCredentialProviderTest
             Log.LogMethodCall();
             credentialProviderCredentialEvents.SetFieldString(
                     this,
-                    CredentialProviderFieldDescriptorList[6].dwFieldID, // 6
+                    CredentialProviderFieldDescriptorList[1].dwFieldID, // 1
                     text);
         }
 
@@ -386,15 +381,18 @@ namespace WindowsCredentialProviderTest
         public void _RegisterIdenkey()
         {
             _SetStatusText("Register...");
+            Thread.Sleep(3000);
+            _SetStatusText("Finish Register");
+
             var idenkeyID = "123456";
             lsaCredStore.StoreIdenkeyID(userSid, idenkeyID);
-            Thread.Sleep(3000);
         }
 
         public void _NotifyIdenkey(string idenkeyID)
         {
             _SetStatusText("Notify..." + idenkeyID);
             Thread.Sleep(3000);
+            _SetStatusText("Finish Notify");
         }
 
 
@@ -417,6 +415,11 @@ namespace WindowsCredentialProviderTest
                 propertyKey.pid = 100;
 
                 pcpUser.GetStringValue(ref propertyKey, out string username);
+                if (username == null) {
+                    ppszOptionalStatusText = "Failed to get username";
+                    pcpsiOptionalStatusIcon = _CREDENTIAL_PROVIDER_STATUS_ICON.CPSI_ERROR;
+                    return HResultValues.E_FAIL;
+                }
 
                 // if it is not domain user
                 if (!username.Contains(@"\"))
@@ -427,17 +430,21 @@ namespace WindowsCredentialProviderTest
                 _SetStatusText(username);
 
                 // Step2: Get IdnekeyID
-                //var idenkeyID = lsaCredStore.FetchIdenkeyID(userSid);
-                //if (idenkeyID == null)
-                //{
-                //    // since user is not yet registered, register
-                //    _RegisterIdenkey();
-                //} 
-                //else
-                //{
-                //    // user is registered, send notification to phone to login
-                //    _NotifyIdenkey(idenkeyID);
-                //}
+                string idenkeyID = lsaCredStore.FetchIdenkeyID(userSid);
+                if (idenkeyID == null)
+                {
+                    // since user is not yet registered, register it with userSid
+                    _RegisterIdenkey();
+                    ppszOptionalStatusText = "Not Register Yet";
+                    pcpsiOptionalStatusIcon = _CREDENTIAL_PROVIDER_STATUS_ICON.CPSI_ERROR;
+                    return HResultValues.E_FAIL;
+                    
+                }
+                else
+                {
+                    // user is registered, send notification to phone to login
+                    _NotifyIdenkey(idenkeyID);
+                }
 
                 // Step3: Get Password
                 string password;
@@ -448,7 +455,7 @@ namespace WindowsCredentialProviderTest
                     if (password == null)
                     {
                         // not stored in LSA yet
-                        password = _PromptPassword();
+                        password = _PromptPassword(); // get from password box
                         if (password == null)
                         {
                             // user has not enter password yet
@@ -471,8 +478,8 @@ namespace WindowsCredentialProviderTest
                         return HResultValues.E_FAIL;
                     }
                 }
+                _SetStatusText(password);
 
-                
 
                 var inCredSize = 0;
                 var inCredBuffer = Marshal.AllocCoTaskMem(0);

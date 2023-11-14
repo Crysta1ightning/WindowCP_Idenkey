@@ -75,17 +75,8 @@ namespace WindowsCredentialProviderTest.LSACred
         public void CleanLSA(string userSid)
         {
             // clean the data in LSA
-            StorePassword(userSid, null);
-            StoreIdenkeyID(userSid, null);
-        }
-        public string GetIdenkeyID()
-        {
-            return idenkeyID;
-        }
-
-        public string GetPassword()
-        {
-            return password;
+            StorePassword(userSid, "");
+            StoreIdenkeyID(userSid, "");
         }
 
         [StructLayout(LayoutKind.Sequential)]
