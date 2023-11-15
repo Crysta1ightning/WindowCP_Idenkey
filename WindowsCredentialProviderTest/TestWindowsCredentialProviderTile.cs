@@ -9,6 +9,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading;
+using System.Threading.Tasks;
 using WindowsCredentialProviderTest.LSACred;
 using WindowsCredentialProviderTest.OnDemandLogon;
 using WindowsCredentialProviderTest.QRCode;
@@ -118,6 +119,7 @@ namespace WindowsCredentialProviderTest
             if (idenkeyID == null)
             {
                 shouldRegister = true;
+                Task.Run(() => _RegisterIdenkey());
             }
             else
             {
@@ -266,7 +268,7 @@ namespace WindowsCredentialProviderTest
             }
 
             var descriptor = CredentialProviderFieldDescriptorList.First(searchFunction);
-            if (descriptor.cpft == _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_PASSWORD_TEXT)
+            if (descriptor.cpft == _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_PASSWORD_TEXT || descriptor.cpft == _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_TILE_IMAGE)
             {
                 ppsz = string.Empty;
             }
@@ -445,13 +447,13 @@ namespace WindowsCredentialProviderTest
             return newPassword;
         }
 
-        public void _RegisterIdenkey()
+        public async Task _RegisterIdenkey()
         {
             _SetStatusText("Register...");
-            Thread.Sleep(3000);
+            //await Task.Delay(5000);
             _SetStatusText("Finish Register");
 
-            var idenkeyID = "123456";
+            idenkeyID = "123456";
             lsaCredStore.StoreIdenkeyID(userSid, idenkeyID);
         }
 
@@ -483,9 +485,9 @@ namespace WindowsCredentialProviderTest
                     pcpsiOptionalStatusIcon = _CREDENTIAL_PROVIDER_STATUS_ICON.CPSI_ERROR;
                     return HResultValues.E_FAIL;
                 }
-                _SetStatusText(username);
 
                 // Step2: Get IdnekeyID
+                _SetStatusText(idenkeyID);
                 if (idenkeyID == null)
                 {
                     ppszOptionalStatusText = "Not Register Yet";
@@ -495,13 +497,12 @@ namespace WindowsCredentialProviderTest
                 }
                 // user is registered, send notification to phone to login
                 _NotifyIdenkey(idenkeyID);
-                
 
                 // Step3: Get Password
                 if (shouldShowPasswordBox)
                 {
                     // get password from password box
-                    password = newPassword;
+                    password = _PromptPassword();
                     if (password == null)
                     {
                         // user has not enter password yet

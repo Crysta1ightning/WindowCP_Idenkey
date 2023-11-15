@@ -72,8 +72,8 @@ namespace WindowsCredentialProviderTest.LSACred
         public void CleanLSA(string userSid)
         {
             // clean the data in LSA
-            StorePassword(userSid, null);
-            StoreIdenkeyID(userSid, null);
+            StorePassword(userSid, "");
+            StoreIdenkeyID(userSid, "");
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -119,53 +119,25 @@ namespace WindowsCredentialProviderTest.LSACred
 
         [DllImport("advapi32.dll", SetLastError = true)]
         public static extern int LsaClose(IntPtr PolicyHandle);
-        public static bool InitLsaString(ref LSA_UNICODE_STRING lsaString, string value)
+        public static void InitLsaString(ref LSA_UNICODE_STRING lsaString, string value)
         {
-            if (value == null)
-            {
-                lsaString = new LSA_UNICODE_STRING();
-                return false;
-            }
-
             lsaString.Length = (ushort)(value.Length * sizeof(char));
             lsaString.MaximumLength = (ushort)((value.Length + 1) * sizeof(char));
             lsaString.Buffer = Marshal.StringToHGlobalUni(value);
-            return true;
         }
         public static bool CreatePrivateDataObject(IntPtr policyHandle, string keyName, string privateData)
         {
             LSA_UNICODE_STRING lucKeyName = new LSA_UNICODE_STRING();
             LSA_UNICODE_STRING lucPrivateData = new LSA_UNICODE_STRING();
 
-            if (!InitLsaString(ref lucKeyName, keyName))
-            {
-                return false;
-            }
-
-            // Check if privateData is null or empty
-            if (privateData != null && privateData.Length > 0)
-            {
-                if (!InitLsaString(ref lucPrivateData, privateData))
-                {
-                    return false;
-                }
-            }
-            else
-            {
-                // Set Buffer to IntPtr.Zero to clear the data
-                lucPrivateData.Buffer = IntPtr.Zero;
-                lucPrivateData.Length = 0;
-                lucPrivateData.MaximumLength = 0;
-            }
+            InitLsaString(ref lucKeyName, keyName);
+            InitLsaString(ref lucPrivateData, privateData);
 
             int ntsResult = LsaStorePrivateData(policyHandle, ref lucKeyName, ref lucPrivateData);
             if (ntsResult != 0)
             {
-                Console.WriteLine("Store private object failed: " + LsaNtStatusToWinError(ntsResult));
                 return false;
             }
-
-            Console.WriteLine("Private data object created and stored successfully.");
             return true;
         }
         public static string RetrievePrivateDataObject(IntPtr policyHandle, string keyName)
@@ -173,21 +145,21 @@ namespace WindowsCredentialProviderTest.LSACred
             LSA_UNICODE_STRING lucKeyName = new LSA_UNICODE_STRING();
             IntPtr privateDataPtr;
 
-            if (!InitLsaString(ref lucKeyName, keyName))
-            {
-                // Console.WriteLine("Failed InitLsaString");
-                return null;
-            }
+            InitLsaString(ref lucKeyName, keyName);
 
             int ntsResult = LsaRetrievePrivateData(policyHandle, ref lucKeyName, out privateDataPtr);
             if (ntsResult != 0)
             {
-                // Console.WriteLine("Retrieve private object failed: " + LsaNtStatusToWinError(ntsResult));
                 return null;
             }
 
             LSA_UNICODE_STRING retrievedData = Marshal.PtrToStructure<LSA_UNICODE_STRING>(privateDataPtr);
             string data = Marshal.PtrToStringUni(retrievedData.Buffer, retrievedData.Length/sizeof(char));
+
+            if (data == "")
+            {
+                return null;
+            }
 
             LsaFreeMemory(privateDataPtr);
 
