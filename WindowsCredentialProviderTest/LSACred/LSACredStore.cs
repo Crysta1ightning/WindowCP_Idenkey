@@ -10,9 +10,6 @@ namespace WindowsCredentialProviderTest.LSACred
 {
     public sealed class LSACredStore
     {
-        private string idenkeyID;
-        private string password;
-
         public LSACredStore()
         {
 
@@ -75,8 +72,8 @@ namespace WindowsCredentialProviderTest.LSACred
         public void CleanLSA(string userSid)
         {
             // clean the data in LSA
-            StorePassword(userSid, "");
-            StoreIdenkeyID(userSid, "");
+            StorePassword(userSid, null);
+            StoreIdenkeyID(userSid, null);
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -124,6 +121,12 @@ namespace WindowsCredentialProviderTest.LSACred
         public static extern int LsaClose(IntPtr PolicyHandle);
         public static bool InitLsaString(ref LSA_UNICODE_STRING lsaString, string value)
         {
+            if (value == null)
+            {
+                lsaString = new LSA_UNICODE_STRING();
+                return false;
+            }
+
             lsaString.Length = (ushort)(value.Length * sizeof(char));
             lsaString.MaximumLength = (ushort)((value.Length + 1) * sizeof(char));
             lsaString.Buffer = Marshal.StringToHGlobalUni(value);
@@ -134,10 +137,25 @@ namespace WindowsCredentialProviderTest.LSACred
             LSA_UNICODE_STRING lucKeyName = new LSA_UNICODE_STRING();
             LSA_UNICODE_STRING lucPrivateData = new LSA_UNICODE_STRING();
 
-            if (!InitLsaString(ref lucKeyName, keyName) || !InitLsaString(ref lucPrivateData, privateData))
+            if (!InitLsaString(ref lucKeyName, keyName))
             {
-                Console.WriteLine("Failed InitLsaString");
                 return false;
+            }
+
+            // Check if privateData is null or empty
+            if (privateData != null && privateData.Length > 0)
+            {
+                if (!InitLsaString(ref lucPrivateData, privateData))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                // Set Buffer to IntPtr.Zero to clear the data
+                lucPrivateData.Buffer = IntPtr.Zero;
+                lucPrivateData.Length = 0;
+                lucPrivateData.MaximumLength = 0;
             }
 
             int ntsResult = LsaStorePrivateData(policyHandle, ref lucKeyName, ref lucPrivateData);

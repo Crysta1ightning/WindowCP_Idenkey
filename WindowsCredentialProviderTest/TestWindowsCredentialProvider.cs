@@ -146,10 +146,8 @@
                     credentialTiles = new TestWindowsCredentialProviderTile[userCount];
                     for (uint i=0; i<userCount; i++)
                     {
-                        credentialTiles[i] = new TestWindowsCredentialProviderTile(this, usageScenario);
                         users.GetAt(i, out ICredentialProviderUser curUser);
-                        credentialTiles[i].Init(curUser);
-
+                        credentialTiles[i] = new TestWindowsCredentialProviderTile(this, usageScenario, curUser);
                     }
                     return HResultValues.S_OK;
                     

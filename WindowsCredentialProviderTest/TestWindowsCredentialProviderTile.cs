@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Threading;
 using WindowsCredentialProviderTest.LSACred;
 using WindowsCredentialProviderTest.OnDemandLogon;
@@ -69,20 +70,72 @@ namespace WindowsCredentialProviderTest
         private string userSid;
         //
         private TimerOnDemandLogon timerOnDemandLogon;
-        private readonly LSACredStore lsaCredStore = new LSACredStore();
-        private readonly QRCodeBitmap qRCodeBitmap = new QRCodeBitmap();
+        private readonly LSACredStore lsaCredStore;
+        private readonly QRCodeBitmap qRCodeBitmap;
         private bool shouldAutoLogin = false;
         private bool firstLogin = true;
         private string newPassword;
+        private readonly string username;
+        private string idenkeyID;
+        private string password;
+        private bool shouldRegister;
+        private bool shouldShowPasswordBox;
+
 
         public TestWindowsCredentialProviderTile(
             TestWindowsCredentialProvider testWindowsCredentialProvider,
-            _CREDENTIAL_PROVIDER_USAGE_SCENARIO usageScenario
+            _CREDENTIAL_PROVIDER_USAGE_SCENARIO usageScenario,
+            ICredentialProviderUser pcpUser
         )
         {
             this.testWindowsCredentialProvider = testWindowsCredentialProvider;
             this.usageScenario = usageScenario;
+            lsaCredStore = new LSACredStore();
+            qRCodeBitmap = new QRCodeBitmap();
+            // get username IdenkeyID password
+            this.pcpUser = pcpUser;
+            pcpUser.GetSid(out userSid);
+
+            // username
+            // PKEY_Identity_UserName is not defined in C#, so I create it manually
+            _tagpropertykey propertyKey;
+            propertyKey.fmtid = new Guid("{C4322503-78CA-49C6-9ACC-A68E2AFD7B6B}");
+            propertyKey.pid = 100;
+
+            pcpUser.GetStringValue(ref propertyKey, out string _username);
+
+            if (!_username.Contains(@"\"))
+            {
+                // if it is root domain user
+                username = @".\" + _username;
+            } else
+            {
+                username = _username;
+            }
+
+            // IdenkeyID
+            idenkeyID = lsaCredStore.FetchIdenkeyID(userSid);
+            if (idenkeyID == null)
+            {
+                shouldRegister = true;
+            }
+            else
+            {
+                shouldRegister = false;
+            }
+
+            // password
+            password = lsaCredStore.FetchPassword(userSid);
+            if (password == null)
+            {
+                shouldShowPasswordBox = true;
+            }
+            else
+            {
+                shouldShowPasswordBox = false;
+            }
         }
+
 
         public int Advise(ICredentialProviderCredentialEvents pcpce)
         {
@@ -175,7 +228,12 @@ namespace WindowsCredentialProviderTest
             //  var descriptor = CredentialProviderFieldDescriptorList.First(x => x.dwFieldID == dwFieldID);
 
             pcpfis = _CREDENTIAL_PROVIDER_FIELD_INTERACTIVE_STATE.CPFIS_NONE;
-            if (dwFieldID == 5) // Password
+   
+            if (dwFieldID == 4 && !shouldRegister) // QRCode
+            {
+                pcpfs = _CREDENTIAL_PROVIDER_FIELD_STATE.CPFS_HIDDEN;
+            }
+            else if (dwFieldID == 5 && !shouldShowPasswordBox) // Password
             {
                 pcpfs = _CREDENTIAL_PROVIDER_FIELD_STATE.CPFS_HIDDEN;
             }
@@ -191,13 +249,14 @@ namespace WindowsCredentialProviderTest
         {
             Log.LogMethodCall();
 
-            var searchFunction = FieldSearchFunctionGenerator(dwFieldID, new []
+            var searchFunction = FieldSearchFunctionGenerator(dwFieldID, new[]
             {
                 _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_SMALL_TEXT,
                 _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_LARGE_TEXT,
                 _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_EDIT_TEXT,
                 _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_PASSWORD_TEXT,
                 _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_COMMAND_LINK,
+                _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_TILE_IMAGE
             });
 
             if (!CredentialProviderFieldDescriptorList.Any(searchFunction))
@@ -210,7 +269,7 @@ namespace WindowsCredentialProviderTest
             if (descriptor.cpft == _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_PASSWORD_TEXT)
             {
                 ppsz = string.Empty;
-            } 
+            }
             else
             {
                 ppsz = descriptor.pszLabel;
@@ -236,16 +295,15 @@ namespace WindowsCredentialProviderTest
 
                 tileIcon = Properties.Resources._480_360_sample;
                 Log.LogMethodCall();
-  
+
             }
-            else if (dwFieldID == 4) // QRCode
+            else if (dwFieldID == 4 && shouldRegister) // QRCode
             {
                 tileIcon = qRCodeBitmap.GetBitmap();
                 Log.LogMethodCall();
             }
-            
 
-            Marshal.WriteIntPtr(phbmp, tileIcon.GetHbitmap()); 
+            Marshal.WriteIntPtr(phbmp, tileIcon.GetHbitmap());
             return HResultValues.S_OK;
         }
 
@@ -273,7 +331,7 @@ namespace WindowsCredentialProviderTest
         {
             Log.LogMethodCall();
 
-            var searchFunction = FieldSearchFunctionGenerator(dwFieldID, new [] { _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_SUBMIT_BUTTON });
+            var searchFunction = FieldSearchFunctionGenerator(dwFieldID, new[] { _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_SUBMIT_BUTTON });
 
             if (!CredentialProviderFieldDescriptorList.Any(searchFunction))
             {
@@ -319,7 +377,7 @@ namespace WindowsCredentialProviderTest
         {
             Log.LogMethodCall();
             newPassword = psz;
-            
+
 
             return HResultValues.S_OK;
         }
@@ -347,7 +405,16 @@ namespace WindowsCredentialProviderTest
             Log.LogMethodCall();
             //_SetStatusText("Clear Register...");
             lsaCredStore.CleanLSA(userSid);
-            _SetStatusText("Password: " + lsaCredStore.FetchPassword(userSid));
+            password = lsaCredStore.FetchPassword(userSid);
+            if (password == null)
+            {
+                _SetStatusText("Password is null");
+            }
+            else
+            {
+                _SetStatusText("Password: " + lsaCredStore.FetchPassword(userSid));
+            }
+            
             return HResultValues.S_OK;
         }
 
@@ -409,67 +476,32 @@ namespace WindowsCredentialProviderTest
                 pcpcs = new _CREDENTIAL_PROVIDER_CREDENTIAL_SERIALIZATION();
 
                 // Step1: Get Username
-                // PKEY_Identity_UserName is not defined in C#, so I create it manually
-                _tagpropertykey propertyKey;
-                propertyKey.fmtid = new Guid("{C4322503-78CA-49C6-9ACC-A68E2AFD7B6B}");
-                propertyKey.pid = 100;
-
-                pcpUser.GetStringValue(ref propertyKey, out string username);
-                if (username == null) {
+                if (username == null)
+                {
                     ppszOptionalStatusText = "Failed to get username";
+                    _SetStatusText(ppszOptionalStatusText);
                     pcpsiOptionalStatusIcon = _CREDENTIAL_PROVIDER_STATUS_ICON.CPSI_ERROR;
                     return HResultValues.E_FAIL;
                 }
-
-                // if it is not domain user
-                if (!username.Contains(@"\"))
-                {
-                    username = @".\" + username;
-                }
-                
                 _SetStatusText(username);
 
                 // Step2: Get IdnekeyID
-                string idenkeyID = lsaCredStore.FetchIdenkeyID(userSid);
                 if (idenkeyID == null)
                 {
-                    // since user is not yet registered, register it with userSid
-                    _RegisterIdenkey();
                     ppszOptionalStatusText = "Not Register Yet";
                     pcpsiOptionalStatusIcon = _CREDENTIAL_PROVIDER_STATUS_ICON.CPSI_ERROR;
                     return HResultValues.E_FAIL;
                     
                 }
-                else
-                {
-                    // user is registered, send notification to phone to login
-                    _NotifyIdenkey(idenkeyID);
-                }
+                // user is registered, send notification to phone to login
+                _NotifyIdenkey(idenkeyID);
+                
 
                 // Step3: Get Password
-                string password;
-                if (firstLogin)
+                if (shouldShowPasswordBox)
                 {
-                    // for the first time login, we assume the password stored in LSA to be correct
-                    password = lsaCredStore.FetchPassword(userSid);
-                    if (password == null)
-                    {
-                        // not stored in LSA yet
-                        password = _PromptPassword(); // get from password box
-                        if (password == null)
-                        {
-                            // user has not enter password yet
-                            ppszOptionalStatusText = "Failed to get password";
-                            pcpsiOptionalStatusIcon = _CREDENTIAL_PROVIDER_STATUS_ICON.CPSI_ERROR;
-                            return HResultValues.E_FAIL;
-                        }
-                    }
-                } 
-                else
-                {
-                    // for the second time login, the password stored in LSA is definetly wrong
-                    // prompt password directly
-                    password = _PromptPassword();
+                    // get password from password box
+                    password = newPassword;
                     if (password == null)
                     {
                         // user has not enter password yet
@@ -478,7 +510,13 @@ namespace WindowsCredentialProviderTest
                         return HResultValues.E_FAIL;
                     }
                 }
-                _SetStatusText(password);
+                else
+                {
+                    // if this doesn't success, the password stored in LSA is wrong
+                    // so we should show password box and let user enter correct password
+                    shouldShowPasswordBox = true;
+                    _PromptPassword();
+                }
 
 
                 var inCredSize = 0;
@@ -501,9 +539,6 @@ namespace WindowsCredentialProviderTest
                         RetrieveNegotiateAuthPackage(out var authPackage);
                         pcpcs.ulAuthenticationPackage = authPackage;
 
-                        // here we finish first login, so the next time we login means there was an error
-                        firstLogin = false;
-                        _PromptPassword();
                         return HResultValues.S_OK;
                     }
 
@@ -568,13 +603,7 @@ namespace WindowsCredentialProviderTest
 
         public int GetUserSid(out string sid)
         {
-            sid = null;
-            if (pcpUser == null)
-            {
-                return HResultValues.E_FAIL;
-            }
-            pcpUser.GetSid(out sid);
-            userSid = sid;
+            sid = userSid;
             return HResultValues.S_OK;
         }
 
