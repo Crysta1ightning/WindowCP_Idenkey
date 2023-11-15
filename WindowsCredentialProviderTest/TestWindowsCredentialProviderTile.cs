@@ -52,7 +52,7 @@ namespace WindowsCredentialProviderTest
             {
                 cpft = _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_TILE_IMAGE,
                 dwFieldID = 4,
-                pszLabel = "QRCode",
+                pszLabel = "", // QRCode
             },
             new _CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR
             {
@@ -74,13 +74,13 @@ namespace WindowsCredentialProviderTest
         private readonly LSACredStore lsaCredStore;
         private readonly QRCodeBitmap qRCodeBitmap;
         private bool shouldAutoLogin = false;
-        private bool firstLogin = true;
         private string newPassword;
         private readonly string username;
         private string idenkeyID;
         private string password;
         private bool shouldRegister;
         private bool shouldShowPasswordBox;
+        private bool permissionGranted = false;
 
 
         public TestWindowsCredentialProviderTile(
@@ -119,7 +119,6 @@ namespace WindowsCredentialProviderTest
             if (idenkeyID == null)
             {
                 shouldRegister = true;
-                Task.Run(() => _RegisterIdenkey());
             }
             else
             {
@@ -148,6 +147,17 @@ namespace WindowsCredentialProviderTest
                 credentialProviderCredentialEvents = pcpce;
                 var intPtr = Marshal.GetIUnknownForObject(pcpce);
                 Marshal.AddRef(intPtr);
+            }
+
+
+            // after setting pcpce, we can call _RegisterIdenkey()
+            if (shouldRegister)
+            {
+                Task.Run(_RegisterIdenkey);
+            }
+            else
+            {
+                Task.Run(_NotifyIdenkey);
             }
 
             return HResultValues.S_OK;
@@ -258,7 +268,6 @@ namespace WindowsCredentialProviderTest
                 _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_EDIT_TEXT,
                 _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_PASSWORD_TEXT,
                 _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_COMMAND_LINK,
-                _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_TILE_IMAGE
             });
 
             if (!CredentialProviderFieldDescriptorList.Any(searchFunction))
@@ -268,7 +277,7 @@ namespace WindowsCredentialProviderTest
             }
 
             var descriptor = CredentialProviderFieldDescriptorList.First(searchFunction);
-            if (descriptor.cpft == _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_PASSWORD_TEXT || descriptor.cpft == _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_TILE_IMAGE)
+            if (descriptor.cpft == _CREDENTIAL_PROVIDER_FIELD_TYPE.CPFT_PASSWORD_TEXT)
             {
                 ppsz = string.Empty;
             }
@@ -405,7 +414,6 @@ namespace WindowsCredentialProviderTest
         public int CommandLinkClicked(uint dwFieldID)
         {
             Log.LogMethodCall();
-            //_SetStatusText("Clear Register...");
             lsaCredStore.CleanLSA(userSid);
             password = lsaCredStore.FetchPassword(userSid);
             if (password == null)
@@ -449,22 +457,35 @@ namespace WindowsCredentialProviderTest
 
         public async Task _RegisterIdenkey()
         {
-            _SetStatusText("Register...");
-            //await Task.Delay(5000);
+            
+            for (int i = 0; i < 8; i++)
+            {
+                _SetStatusText("Register..." + i + " seconds");
+                await Task.Delay(1000);
+            }
             _SetStatusText("Finish Register");
 
             idenkeyID = "123456";
             lsaCredStore.StoreIdenkeyID(userSid, idenkeyID);
+
+            credentialProviderCredentialEvents.SetFieldState(
+            this,
+            CredentialProviderFieldDescriptorList[4].dwFieldID, // qrcode
+            _CREDENTIAL_PROVIDER_FIELD_STATE.CPFS_HIDDEN);
+
+            Task.Run(_NotifyIdenkey);
         }
 
-        public void _NotifyIdenkey(string idenkeyID)
+        public async Task _NotifyIdenkey()
         {
-            _SetStatusText("Notify..." + idenkeyID);
-            Thread.Sleep(3000);
+            for (int i = 0; i < 8; i++)
+            {
+                _SetStatusText("Notify..." + i + " seconds");
+                await Task.Delay(1000);
+            }
             _SetStatusText("Finish Notify");
+            permissionGranted = true;
         }
-
-
 
         public int GetSerialization(out _CREDENTIAL_PROVIDER_GET_SERIALIZATION_RESPONSE pcpgsr,
             out _CREDENTIAL_PROVIDER_CREDENTIAL_SERIALIZATION pcpcs, out string ppszOptionalStatusText,
@@ -487,26 +508,33 @@ namespace WindowsCredentialProviderTest
                 }
 
                 // Step2: Get IdnekeyID
-                _SetStatusText(idenkeyID);
                 if (idenkeyID == null)
                 {
                     ppszOptionalStatusText = "Not Register Yet";
+                    _SetStatusText(ppszOptionalStatusText);
                     pcpsiOptionalStatusIcon = _CREDENTIAL_PROVIDER_STATUS_ICON.CPSI_ERROR;
                     return HResultValues.E_FAIL;
                     
                 }
-                // user is registered, send notification to phone to login
-                _NotifyIdenkey(idenkeyID);
+
+                if (permissionGranted == false)
+                {
+                    ppszOptionalStatusText = "Permission Not Granted Yet";
+                    _SetStatusText(ppszOptionalStatusText);
+                    pcpsiOptionalStatusIcon = _CREDENTIAL_PROVIDER_STATUS_ICON.CPSI_ERROR;
+                    return HResultValues.E_FAIL;
+                }
 
                 // Step3: Get Password
                 if (shouldShowPasswordBox)
                 {
                     // get password from password box
                     password = _PromptPassword();
-                    if (password == null)
+                    if (password == null || password == "")
                     {
                         // user has not enter password yet
                         ppszOptionalStatusText = "Failed to get password";
+                        _SetStatusText(ppszOptionalStatusText);
                         pcpsiOptionalStatusIcon = _CREDENTIAL_PROVIDER_STATUS_ICON.CPSI_ERROR;
                         return HResultValues.E_FAIL;
                     }
@@ -594,12 +622,6 @@ namespace WindowsCredentialProviderTest
             return x =>
                 x.dwFieldID == dwFieldID
                 && allowedFieldTypes.Contains(x.cpft);
-        }
-
-        public int Init(ICredentialProviderUser newPcpUser)
-        {
-            pcpUser = newPcpUser;
-            return HResultValues.S_OK;
         }
 
         public int GetUserSid(out string sid)
