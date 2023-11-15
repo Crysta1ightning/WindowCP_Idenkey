@@ -10,6 +10,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using WindowsCredentialProviderTest.Internet;
 using WindowsCredentialProviderTest.LSACred;
 using WindowsCredentialProviderTest.OnDemandLogon;
 using WindowsCredentialProviderTest.QRCode;
@@ -73,6 +74,7 @@ namespace WindowsCredentialProviderTest
         private TimerOnDemandLogon timerOnDemandLogon;
         private readonly LSACredStore lsaCredStore;
         private readonly QRCodeBitmap qRCodeBitmap;
+        private readonly InternetConnect internet;
         private bool shouldAutoLogin = false;
         private string newPassword;
         private readonly string username;
@@ -81,6 +83,8 @@ namespace WindowsCredentialProviderTest
         private bool shouldRegister;
         private bool shouldShowPasswordBox;
         private bool permissionGranted = false;
+        private bool alreadyInit = false;
+        private bool isConnected;
 
 
         public TestWindowsCredentialProviderTile(
@@ -93,6 +97,8 @@ namespace WindowsCredentialProviderTest
             this.usageScenario = usageScenario;
             lsaCredStore = new LSACredStore();
             qRCodeBitmap = new QRCodeBitmap();
+            internet = new InternetConnect();
+
             // get username IdenkeyID password
             this.pcpUser = pcpUser;
             pcpUser.GetSid(out userSid);
@@ -149,17 +155,6 @@ namespace WindowsCredentialProviderTest
                 Marshal.AddRef(intPtr);
             }
 
-
-            // after setting pcpce, we can call _RegisterIdenkey()
-            if (shouldRegister)
-            {
-                Task.Run(_RegisterIdenkey);
-            }
-            else
-            {
-                Task.Run(_NotifyIdenkey);
-            }
-
             return HResultValues.S_OK;
         }
 
@@ -177,9 +172,40 @@ namespace WindowsCredentialProviderTest
             return HResultValues.S_OK;
         }
 
+        async public void _init()
+        {
+            // first check internet connection
+            isConnected = await internet.CheckInternetConnection();
+            _SetStatusText("Connected: " + isConnected);
+            if (isConnected)
+            {
+                string todo = await internet.FetchAPI();
+                _SetStatusText("Connected: " + isConnected + " TODO: " + todo);
+            }
+
+            // after setting pcpce, we can call _RegisterIdenkey()
+            if (shouldRegister)
+            {
+                Task.Run(_RegisterIdenkey);
+            }
+            else
+            {
+                Task.Run(_NotifyIdenkey);
+            }
+        }
+
         public int SetSelected(out int pbAutoLogon)
         {
             Log.LogMethodCall();
+            if (alreadyInit)
+            {
+                pbAutoLogon = 0;
+                return HResultValues.S_OK;
+            }
+
+            //_init();
+            alreadyInit = true;
+
             //if (username == null)
             //{
             //    SetUsernameText("Username Not Found");
@@ -460,10 +486,10 @@ namespace WindowsCredentialProviderTest
             
             for (int i = 0; i < 8; i++)
             {
-                _SetStatusText("Register..." + i + " seconds");
+                //_SetStatusText("Register..." + i + " seconds");
                 await Task.Delay(1000);
             }
-            _SetStatusText("Finish Register");
+            //_SetStatusText("Finish Register");
 
             idenkeyID = "123456";
             lsaCredStore.StoreIdenkeyID(userSid, idenkeyID);
@@ -480,10 +506,10 @@ namespace WindowsCredentialProviderTest
         {
             for (int i = 0; i < 8; i++)
             {
-                _SetStatusText("Notify..." + i + " seconds");
+                //_SetStatusText("Notify..." + i + " seconds");
                 await Task.Delay(1000);
             }
-            _SetStatusText("Finish Notify");
+            //_SetStatusText("Finish Notify");
             permissionGranted = true;
         }
 

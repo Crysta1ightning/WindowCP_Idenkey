@@ -5,7 +5,7 @@ using System.Threading;
 
 namespace WindowsCredentialProviderTest.QRCode
 {
-    public class QRCodeBitmap
+    public sealed class QRCodeBitmap
     {
         private readonly string qrCodeBase64;
         public QRCodeBitmap()
