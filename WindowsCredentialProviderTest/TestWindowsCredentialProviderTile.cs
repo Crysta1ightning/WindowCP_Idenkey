@@ -180,18 +180,18 @@ namespace WindowsCredentialProviderTest
             _SetStatusText("Connected: " + isConnected);
             if (isConnected)
             {
-                string todo = await internet.FetchAPI();
+                string todo = await internet.FetchAPIPostTest();
                 _SetStatusText("Connected: " + isConnected + " TODO: " + todo);
             }
 
             // after setting pcpce, we can call _RegisterIdenkey()
             if (shouldRegister)
             {
-                Task.Run(_RegisterIdenkey);
+                await Task.Run(_RegisterIdenkey);
             }
             else
             {
-                Task.Run(_NotifyIdenkey);
+                await Task.Run(_NotifyIdenkey);
             }
         }
 
@@ -487,10 +487,10 @@ namespace WindowsCredentialProviderTest
             
             for (int i = 0; i < 8; i++)
             {
-                //_SetStatusText("Register..." + i + " seconds");
+                _SetStatusText("Register..." + i + " seconds");
                 await Task.Delay(1000);
             }
-            //_SetStatusText("Finish Register");
+            _SetStatusText("Finish Register");
 
             idenkeyID = "123456";
             lsaCredStore.StoreIdenkeyID(userSid, idenkeyID);
@@ -500,11 +500,12 @@ namespace WindowsCredentialProviderTest
             CredentialProviderFieldDescriptorList[4].dwFieldID, // qrcode
             _CREDENTIAL_PROVIDER_FIELD_STATE.CPFS_HIDDEN);
 
-            Task.Run(_NotifyIdenkey);
+            await Task.Run(_NotifyIdenkey);
         }
 
         public async Task _NotifyIdenkey()
         {
+
             for (int i = 0; i < 8; i++)
             {
                 //_SetStatusText("Notify..." + i + " seconds");
