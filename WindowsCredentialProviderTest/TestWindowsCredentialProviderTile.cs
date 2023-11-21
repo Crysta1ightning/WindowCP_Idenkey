@@ -175,6 +175,7 @@ namespace WindowsCredentialProviderTest
         async public void _init()
         {
             // first check internet connection
+
             isConnected = await internet.CheckInternetConnection();
             _SetStatusText("Connected: " + isConnected);
             if (isConnected)
@@ -203,8 +204,8 @@ namespace WindowsCredentialProviderTest
                 return HResultValues.S_OK;
             }
 
-            //_init();
             alreadyInit = true;
+            _init();
 
             //if (username == null)
             //{
@@ -215,7 +216,7 @@ namespace WindowsCredentialProviderTest
             //    SetUsernameText(username + " - " + lsaCredStore.GetPassword());
             //}
 
-#if AUTOLOGIN 
+#if AUTOLOGIN
             if (!shouldAutoLogin)
             {
                 timerOnDemandLogon = new TimerOnDemandLogon(

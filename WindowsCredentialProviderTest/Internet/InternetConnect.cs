@@ -1,22 +1,18 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net.Http;
 using System.Net.NetworkInformation;
-using System.Text;
 using System.Threading.Tasks;
-using System.Text.Json;
+using System.Net;
+using Newtonsoft.Json;
 
 namespace WindowsCredentialProviderTest.Internet
 {
     public sealed class InternetConnect
     {
         readonly Ping ping;
-        readonly HttpClient client;
         public InternetConnect()
         {
             ping = new Ping();
-            client = new HttpClient();
         }
         public async Task<bool> CheckInternetConnection()
         {
@@ -30,20 +26,39 @@ namespace WindowsCredentialProviderTest.Internet
 
         public async Task<string> FetchAPI()
         {
-            return "???";
+
+            HttpClient client = new HttpClient();
             string apiUrl = "https://jsonplaceholder.typicode.com/todos/1";
-
-            HttpResponseMessage response = await client.GetAsync(apiUrl);
-
-            if (response.IsSuccessStatusCode)
+            
+            try
             {
-                string jsonResult = await response.Content.ReadAsStringAsync();
-                Todo todo = JsonSerializer.Deserialize<Todo>(jsonResult);
-                return "HELLO";
-                return todo.Title + " " + todo.Completed;
+                // magic code to fix TLS/SSL issue
+                System.Net.ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
+                System.Net.ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Ssl3 | SecurityProtocolType.Tls;
+                HttpResponseMessage response = await client.GetAsync(apiUrl);
+
+                if (response.IsSuccessStatusCode)
+                {
+               
+                    string jsonResult = await response.Content.ReadAsStringAsync();
+                    
+                    Todo todo = JsonConvert.DeserializeObject<Todo>(jsonResult);
+
+                    if (todo != null)
+                    {
+                        return todo.Title + " " + todo.Completed;
+                    }
+                    else
+                    {
+                        return jsonResult;
+                    }
+                }
+                return "";
+            } catch (Exception ex)
+            {
+                return ex.ToString();
             }
-            return "";
-            return null;
+
         }
     }
 

@@ -1,24 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.Json.Serialization;
-using System.Threading.Tasks;
+﻿using Newtonsoft.Json;
 
 namespace WindowsCredentialProviderTest.Internet
 {
     internal class Todo
     {
-        [JsonPropertyName("userId")]
+        [JsonProperty("userId")]
         public int UserId { get; set; }
 
-        [JsonPropertyName("id")]
+        [JsonProperty("id")]
         public int Id { get; set; }
 
-        [JsonPropertyName("title")]
+        [JsonProperty("title")]
         public string Title { get; set; }
 
-        [JsonPropertyName("completed")]
+        [JsonProperty("completed")]
         public bool Completed { get; set; }
     }
 }
