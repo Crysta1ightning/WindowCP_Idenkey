@@ -22,12 +22,20 @@ namespace WindowsCredentialProviderTest.Internet
         }
         public async Task<bool> CheckInternetConnection()
         {
-            // checks internet connection by pining google DNS server 8.8.8.8
-            string hostToPing = "8.8.8.8";
+            try
+            {
+                // checks internet connection by pining google DNS server 8.8.8.8
+                string hostToPing = "8.8.8.8";
 
-            PingReply reply = await ping.SendPingAsync(hostToPing);
+                PingReply reply = await ping.SendPingAsync(hostToPing);
 
-            return (reply.Status == IPStatus.Success);
+                return (reply.Status == IPStatus.Success);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+
         }
 
 
