@@ -12,12 +12,9 @@ namespace WindowsCredentialProviderTest.QRCode
 {
     public sealed class QRCodeBitmap
     {
-        private readonly string qrCodeURL;
-        public QRCodeBitmap()
-        {
-            qrCodeURL = "IDG - FIDO://eyJzdGFuIjoiMEZDQzFENjVENkMzOTE2NzJEQzYzODdDNTE0RERDODAiLCJ0eGRhdGVUaW1lIjoiMjAyMjA2MjIxMDIwMzAiLCJpZCI6IkphY2tIdSIsImNoYW5uZWwiOiJTUCJ9";
-        }
-        public Bitmap GetBitmap()
+        //qrCodeURL = "IDG - FIDO://eyJzdGFuIjoiMEZDQzFENjVENkMzOTE2NzJEQzYzODdDNTE0RERDODAiLCJ0eGRhdGVUaW1lIjoiMjAyMjA2MjIxMDIwMzAiLCJpZCI6IkphY2tIdSIsImNoYW5uZWwiOiJTUCJ9";
+        
+        public static Bitmap GetBitmap(string qrCodeURL)
         {
             //specify desired options
             QrCodeEncodingOptions options = new QrCodeEncodingOptions()

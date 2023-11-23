@@ -74,7 +74,7 @@ namespace WindowsCredentialProviderTest
         private TimerOnDemandLogon timerOnDemandLogon;
         private readonly LSACredStore lsaCredStore;
         private readonly QRCodeBitmap qRCodeBitmap;
-        private readonly InternetConnect internet;
+        private readonly InternetConnect internetConnect;
         private bool shouldAutoLogin = false;
         private string newPassword;
         private readonly string username;
@@ -97,7 +97,7 @@ namespace WindowsCredentialProviderTest
             this.usageScenario = usageScenario;
             lsaCredStore = new LSACredStore();
             qRCodeBitmap = new QRCodeBitmap();
-            internet = new InternetConnect();
+            internetConnect = new InternetConnect();
 
             // get username IdenkeyID password
             this.pcpUser = pcpUser;
@@ -176,12 +176,12 @@ namespace WindowsCredentialProviderTest
         {
             // first check internet connection
 
-            isConnected = await internet.CheckInternetConnection();
+            isConnected = await internetConnect.CheckInternetConnection();
             _SetStatusText("Connected: " + isConnected);
-            if (isConnected)
+
+            if (!isConnected)
             {
-                string todo = await internet.FetchAPIPostTest();
-                _SetStatusText("Connected: " + isConnected + " TODO: " + todo);
+                return;
             }
 
             // after setting pcpce, we can call _RegisterIdenkey()
@@ -268,7 +268,7 @@ namespace WindowsCredentialProviderTest
 
             pcpfis = _CREDENTIAL_PROVIDER_FIELD_INTERACTIVE_STATE.CPFIS_NONE;
    
-            if (dwFieldID == 4 && !shouldRegister) // QRCode
+            if (dwFieldID == 4) // QRCode
             {
                 pcpfs = _CREDENTIAL_PROVIDER_FIELD_STATE.CPFS_HIDDEN;
             }
@@ -333,15 +333,10 @@ namespace WindowsCredentialProviderTest
 
                 tileIcon = Properties.Resources._480_360_sample;
                 Log.LogMethodCall();
-
             }
-            else if (dwFieldID == 4 && shouldRegister) // QRCode
-            {
-                tileIcon = qRCodeBitmap.GetBitmap();
-                Log.LogMethodCall();
-            }
-
+            // leave QRCode field as empty first
             Marshal.WriteIntPtr(phbmp, tileIcon.GetHbitmap());
+
             return HResultValues.S_OK;
         }
 
@@ -484,15 +479,52 @@ namespace WindowsCredentialProviderTest
 
         public async Task _RegisterIdenkey()
         {
-            
-            for (int i = 0; i < 8; i++)
+            _SetStatusText("Register...");
+            QRCodeAPIResponse qRCodeAPIResponse = await internetConnect.FetchQRCode(userSid);
+            if (qRCodeAPIResponse.status != "0000")
             {
-                _SetStatusText("Register..." + i + " seconds");
-                await Task.Delay(1000);
+                _SetStatusText(qRCodeAPIResponse.msg);
+                return;
             }
-            _SetStatusText("Finish Register");
 
-            idenkeyID = "123456";
+            Bitmap qrcodeBitmap = QRCodeBitmap.GetBitmap(qRCodeAPIResponse.qrcode);
+            credentialProviderCredentialEvents.SetFieldState(
+            this,
+            CredentialProviderFieldDescriptorList[4].dwFieldID, // qrcode
+            _CREDENTIAL_PROVIDER_FIELD_STATE.CPFS_DISPLAY_IN_BOTH);
+            //Marshal.WriteIntPtr(phbmp, tileIcon.GetHbitmap());
+            IntPtr hbmp = qrcodeBitmap.GetHbitmap();
+
+            credentialProviderCredentialEvents.SetFieldBitmap(
+            this,
+            CredentialProviderFieldDescriptorList[4].dwFieldID, // qrcode
+            ref hbmp);
+            
+
+
+            _SetStatusText("Use your phone to scan the QRCode below");
+
+
+            // Keep Checking Status for 1 minute with an interval of 3 seconds
+            for (int i = 0; i < 20; i++)
+            {
+                CheckQRResponse checkQRResponse = await internetConnect.FetchCheckQR(userSid);
+                if (checkQRResponse.status == "0000") // success
+                {
+                    idenkeyID = checkQRResponse.idgateid;
+                    break;
+                } 
+                else if (checkQRResponse.status == "0001") // pending
+                {
+                    await Task.Delay(3000);
+                }
+                else
+                {
+                    _SetStatusText(checkQRResponse.msg);
+                    return;
+                }
+            }
+
             lsaCredStore.StoreIdenkeyID(userSid, idenkeyID);
 
             credentialProviderCredentialEvents.SetFieldState(
@@ -500,19 +532,45 @@ namespace WindowsCredentialProviderTest
             CredentialProviderFieldDescriptorList[4].dwFieldID, // qrcode
             _CREDENTIAL_PROVIDER_FIELD_STATE.CPFS_HIDDEN);
 
+            _SetStatusText("Finish Register");
+
             await Task.Run(_NotifyIdenkey);
         }
 
         public async Task _NotifyIdenkey()
         {
-
-            for (int i = 0; i < 8; i++)
+            _SetStatusText("Notify...");
+            CreateTxnAPIResponse createTxnAPIResponse = await internetConnect.FetchCreateTxn(idenkeyID);
+            if (createTxnAPIResponse.status != "0000")
             {
-                //_SetStatusText("Notify..." + i + " seconds");
-                await Task.Delay(1000);
+                _SetStatusText(createTxnAPIResponse.msg);
+                return;
             }
-            //_SetStatusText("Finish Notify");
+
+            string txnid = createTxnAPIResponse.txnid;
+            _SetStatusText($"Confirm login with Txnid: {txnid} in your phone");
+
+            // Keep Checking Status for 1 minute with an interval of 3 seconds
+            for (int i = 0; i < 20; i++)
+            {
+                APIResponse aPIResponse = await internetConnect.FetchCheckTxn(idenkeyID, txnid);
+                if (aPIResponse.status == "0000") // success
+                {
+                    break;
+                }
+                else if (aPIResponse.status == "0001") // pending
+                {
+                    await Task.Delay(3000);
+                }
+                else
+                {
+                    _SetStatusText(aPIResponse.msg);
+                    return;
+                }
+            }
+
             permissionGranted = true;
+            _SetStatusText("Finish Notify");
         }
 
         public int GetSerialization(out _CREDENTIAL_PROVIDER_GET_SERIALIZATION_RESPONSE pcpgsr,
