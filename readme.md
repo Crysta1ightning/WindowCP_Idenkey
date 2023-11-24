@@ -2,35 +2,38 @@
 # Windows Credential Provider
 _Made only with C#, .NET_
 
-There was no implementation in .NET that could work as credential provider in windows,
-so I created this example.
-
-The code is totally free for any use.
+This project is built above the foundation of
+https://github.com/phaetto/windows-credentials-provider
+Huge credit to Phaetto!
 
 ## *Read this before you start*
+I will recommend you try this CP (credential provider) using a virtual machine.
 
-Installing an untested credential provider might lock you out of the system,
-as the code will run in process with winlogon.
-
-Use a live distro to remove the dll if that happens.
-
-Better yet, use a VM to do your experiments.
-
+I personally use Oracle VirtualBox and Win10, but anything above Win8 should be fine.
 _Consider yourself warned._
 
 ## Installation
-To start a setup to develop your own Windows Credential Provider:
-- Install the COM component by building the project
-- Merge the registry to install the cred. provider
+To install the credential provider, you should 
+1. Open the `WindowsCredentialProvider.sln` and build it using Visual Studio
+2. Register the CP, by using the following commands
+```
+C:\\Windows\Microsoft.NET\Framework64\v4.0.30319\RegAsm.exe "C:\Windows\System32\WindowsCredentialProviderTest.dll" /tlb /codebase
+```
+```
+regedit register-credentials-provider.reg
+```
+If you understand Chinese, check out https://iam9527.pixnet.net/blog/post/351771139-%5Bc%23%5Dcredential-provider if you still don't know how to install.
 
+This CP requires internet to function, if you don't have internet, it won't let you login.
 The projects are setup for x64 systems - you might need to change that if you want it to run on 32bit platforms. Same goes for registry installation.
 
-When you run TestConsoleApp you should be able to see your provider under "more choices" (windows 10).
-
 ## What it can do
-It connects the logon procedure with alternative means to logon, like images from cameras, voices with microphone.
+It allows you to login using your phone, so you only need to type the password on the first login.
 
-## More info
-I have included the official doc on how to use the credential provider - note that you have to have some knowledge about COM and the examples are in C++.
+For the first time login:
+1. Shows QRCode, use your phone app to scan and register
+2. It will then send a notification to your phone, after you confirm it, you can enter your password and login.
+   
+After the first time login:
+1. Send a notification to your phone, confirm it, and login (without typing the password).
 
-I have also included the guide on how to (re)export Interop typelib from IDL in windows SDK. You can use that to export almost any component.
