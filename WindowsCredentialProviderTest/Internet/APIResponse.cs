@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using System;
 
 namespace WindowsCredentialProviderTest.Internet
 {
@@ -18,6 +19,38 @@ namespace WindowsCredentialProviderTest.Internet
             response.status = "E7000";
             response.msg = msg;
             return response;
+        }
+
+        public static APIResponse Convert(Type targetType, APIResponse response)
+        {
+            if (targetType == typeof(QRCodeAPIResponse))
+            {
+                QRCodeAPIResponse newResponse = new QRCodeAPIResponse();
+                newResponse.status = response.status;
+                newResponse.msg = response.msg;
+                newResponse.qrcode = null;
+                return newResponse;
+            }
+            else if (targetType == typeof(CheckQRResponse)) {
+                CheckQRResponse newResponse = new CheckQRResponse();
+                newResponse.status = response.status;
+                newResponse.msg = response.msg;
+                newResponse.idgateid = null;
+                return newResponse;
+            }
+            else if (targetType == typeof(CreateTxnAPIResponse))
+            {
+                CreateTxnAPIResponse newResponse = new CreateTxnAPIResponse();
+                newResponse.status = response.status;
+                newResponse.msg = response.msg;
+                newResponse.txnid = null;
+                return newResponse;
+            }
+            else
+            {
+                return response;
+            }
+
         }
     }
     public class QRCodeAPIResponse : APIResponse

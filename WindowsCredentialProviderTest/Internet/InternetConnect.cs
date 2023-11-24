@@ -48,10 +48,10 @@ namespace WindowsCredentialProviderTest.Internet
             {
                 DateTime currentDateTime = DateTime.Now;
                 string formattedDateTime = currentDateTime.ToString("yyyyMMddHHmmss");
-                string apiUrl = serverName + "/GetRegQR";
+                string apiUrl = "https://si.toppanidgate.com/iDenKeyFidoKlGW/GetRegQR";
                 string requestBody = $"{{\"txdatetime\": \"{formattedDateTime}\", " +
                     $"\"id\": \"{userSid}\", " +
-                    $"\"channel\": {channel}}}";
+                    $"\"channel\": \"{channel}\"}}";
                 string result = await FetchAPIPost(apiUrl, requestBody);
 
                 QRCodeAPIResponse qRCodeAPIResponse = JsonConvert.DeserializeObject<QRCodeAPIResponse>(result);
@@ -66,13 +66,15 @@ namespace WindowsCredentialProviderTest.Internet
             catch (HttpRequestException ex)
             {
                 // Handle HTTP request-related exceptions
-                QRCodeAPIResponse errorResponse = (QRCodeAPIResponse)APIResponse.ErrorResponse($"HTTP request failed: {ex.Message}");
+                QRCodeAPIResponse errorResponse = (QRCodeAPIResponse)APIResponse.Convert(typeof(QRCodeAPIResponse),
+                    APIResponse.ErrorResponse($"FetchQRCode HTTP request failed: {ex.Message}"));
                 return errorResponse;
             }
             catch (Exception ex)
             {
                 // Handle any other unexpected exceptions
-                QRCodeAPIResponse errorResponse = (QRCodeAPIResponse)APIResponse.ErrorResponse($"An unexpected error occurred: {ex.Message}");
+                QRCodeAPIResponse errorResponse = (QRCodeAPIResponse)APIResponse.Convert(typeof(QRCodeAPIResponse),
+                    APIResponse.ErrorResponse($"FetchQRCode An unexpected error occurred: {ex.Message}"));
                 return errorResponse;
             }
         }
@@ -83,7 +85,7 @@ namespace WindowsCredentialProviderTest.Internet
             {
                 string apiUrl = serverName + "/CheckRegStatus";
                 string requestBody = $"{{ \"id\": \"{userSid}\", " +
-                    $"\"channel\": {channel}}}";
+                    $"\"channel\": \"{channel}\"}}";
                 string result = await FetchAPIPost(apiUrl, requestBody);
 
                 CheckQRResponse checkQRResponse = JsonConvert.DeserializeObject<CheckQRResponse>(result);
@@ -97,44 +99,51 @@ namespace WindowsCredentialProviderTest.Internet
             catch (HttpRequestException ex)
             {
                 // Handle HTTP request-related exceptions
-                CheckQRResponse errorResponse = (CheckQRResponse)APIResponse.ErrorResponse($"HTTP request failed: {ex.Message}");
+                CheckQRResponse errorResponse = (CheckQRResponse)APIResponse.Convert(typeof(CheckQRResponse),
+                    APIResponse.ErrorResponse($"FetchCheckQR HTTP request failed: {ex.Message}"));
                 return errorResponse;
             }
             catch (Exception ex)
             {
                 // Handle any other unexpected exceptions
-                CheckQRResponse errorResponse = (CheckQRResponse)APIResponse.ErrorResponse($"An unexpected error occurred: {ex.Message}");
+                CheckQRResponse errorResponse = (CheckQRResponse)APIResponse.Convert(typeof(CheckQRResponse),
+                    APIResponse.ErrorResponse($"FetchCheckQR An unexpected error occurred: {ex.Message}"));
                 return errorResponse;
             }
         }
 
-        public async Task<CreateTxnAPIResponse> FetchCreateTxn(string userSid)
+        public async Task<CreateTxnAPIResponse> FetchCreateTxn(string userSid, Action<string> setStatusText)
         {
             try
             {
                 string apiUrl = serverName + "/CreateTxn";
                 string requestBody = $"{{ \"id\": \"{userSid}\", " +
-                    $"\"channel\": {channel}}}";
-                string result = await FetchAPIPost(apiUrl, requestBody);
+                    $"\"channel\": \"{channel}\"}}";
+                string result = await FetchAPIPost(apiUrl, requestBody, setStatusText);
 
-                CreateTxnAPIResponse createTxnAPIResponse = JsonConvert.DeserializeObject<CreateTxnAPIResponse>(result);
-                if (createTxnAPIResponse == null || createTxnAPIResponse.status == null 
-                    || createTxnAPIResponse.msg == null || createTxnAPIResponse.txnid == null)
-                {
-                    throw new Exception("is Null");
-                }
+                //CreateTxnAPIResponse createTxnAPIResponse = JsonConvert.DeserializeObject<CreateTxnAPIResponse>(result);
+                //if (createTxnAPIResponse == null || createTxnAPIResponse.status == null 
+                //    || createTxnAPIResponse.msg == null || createTxnAPIResponse.txnid == null)
+                //{
+                //    throw new Exception("is Null");
+                //}
+                CreateTxnAPIResponse createTxnAPIResponse = new CreateTxnAPIResponse();
+                createTxnAPIResponse.status = "0000";
+                createTxnAPIResponse.msg = "Hello World";
                 return createTxnAPIResponse;
             }
             catch (HttpRequestException ex)
             {
                 // Handle HTTP request-related exceptions
-                CreateTxnAPIResponse errorResponse = (CreateTxnAPIResponse)APIResponse.ErrorResponse($"HTTP request failed: {ex.Message}");
+                CreateTxnAPIResponse errorResponse = (CreateTxnAPIResponse)APIResponse.Convert(typeof(CreateTxnAPIResponse),
+                    APIResponse.ErrorResponse($"FetchCreateTxn HTTP request failed: {ex.Message}"));
                 return errorResponse;
             }
             catch (Exception ex)
             {
                 // Handle any other unexpected exceptions
-                CreateTxnAPIResponse errorResponse = (CreateTxnAPIResponse)APIResponse.ErrorResponse($"An unexpected error occurred: {ex.Message}");
+                CreateTxnAPIResponse errorResponse = (CreateTxnAPIResponse)APIResponse.Convert(typeof(CreateTxnAPIResponse),
+                    APIResponse.ErrorResponse($"FetchCreateTxn An unexpected error occurred: {ex.Message}"));
                 return errorResponse;
             }
         }
@@ -145,8 +154,8 @@ namespace WindowsCredentialProviderTest.Internet
             {
                 string apiUrl = serverName + "/CheckTxnStatus";
                 string requestBody = $"{{ \"id\": \"{userSid}\", " +
-                    $"\"txnid\": {txnid}, " +
-                    $"\"channel\": {channel}}}";
+                    $"\"txnid\": \"{txnid}\", " +
+                    $"\"channel\": \"{channel}\"}}";
                 string result = await FetchAPIPost(apiUrl, requestBody);
 
                 APIResponse aPIResponse = JsonConvert.DeserializeObject<APIResponse>(result);
@@ -159,13 +168,13 @@ namespace WindowsCredentialProviderTest.Internet
             catch (HttpRequestException ex)
             {
                 // Handle HTTP request-related exceptions
-                APIResponse errorResponse = APIResponse.ErrorResponse($"HTTP request failed: {ex.Message}");
+                APIResponse errorResponse = APIResponse.ErrorResponse($"FetchCheckTxn HTTP request failed: {ex.Message}");
                 return errorResponse;
             }
             catch (Exception ex)
             {
                 // Handle any other unexpected exceptions
-                APIResponse errorResponse = APIResponse.ErrorResponse($"An unexpected error occurred: {ex.Message}");
+                APIResponse errorResponse = APIResponse.ErrorResponse($"FetchCheckTxn An unexpected error occurred: {ex.Message}");
                 return errorResponse;
             }
         }
@@ -194,6 +203,33 @@ namespace WindowsCredentialProviderTest.Internet
             {
                 // Log the exception or perform additional handling if needed
                 throw; // Re-throw the exception for the caller to handle
+            }
+        }
+
+        private async Task<string> FetchAPIPost(string apiUrl, string requestBody, Action<string> setStatusText)
+        {
+            try
+            {
+                // Content to be sent in the request
+                var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
+
+                // Sending POST request
+                HttpResponseMessage response = await client.PostAsync(apiUrl, content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    string jsonResult = await response.Content.ReadAsStringAsync();
+                    return jsonResult;
+                }
+                else
+                {
+                    throw new HttpRequestException($"Failed to post data. Status code: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the exception or perform additional handling if needed
+                throw ex; // Re-throw the exception for the caller to handle
             }
         }
     }
