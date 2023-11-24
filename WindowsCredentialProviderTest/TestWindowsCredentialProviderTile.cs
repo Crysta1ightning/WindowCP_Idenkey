@@ -184,25 +184,14 @@ namespace WindowsCredentialProviderTest
                 return;
             }
 
-            QRCodeAPIResponse qRCodeAPIResponse = await internetConnect.FetchQRCode(userSid);
-
-            if (qRCodeAPIResponse.status != "0000")
-            {
-                _SetStatusText(qRCodeAPIResponse.msg);
-            }
-            else
-            {
-                _SetStatusText(qRCodeAPIResponse.qrcode);
-            }
-
             // after setting pcpce, we can call _RegisterIdenkey()
             if (shouldRegister)
             {
-                //await Task.Run(_RegisterIdenkey);
+                await Task.Run(_RegisterIdenkey);
             }
             else
             {
-                //await Task.Run(_NotifyIdenkey);
+                await Task.Run(_NotifyIdenkey);
             }
         }
 
@@ -349,17 +338,17 @@ namespace WindowsCredentialProviderTest
             }
             else if (dwFieldID == 4 && shouldRegister) // qrcode
             {
-                //QRCodeAPIResponse qRCodeAPIResponse = internetConnect.FetchQRCode(userSid);
-                
-                //if (qRCodeAPIResponse.status != "0000")
-                //{
+                QRCodeAPIResponse qRCodeAPIResponse = internetConnect.FetchQRCode(userSid);
+
+                if (qRCodeAPIResponse.status != "0000")
+                {
                     tileIcon = Properties.Resources._480_360_sample;
                     Marshal.WriteIntPtr(phbmp, tileIcon.GetHbitmap());
 
                     return HResultValues.S_OK;
-                //}
+                }
 
-                //tileIcon = QRCodeBitmap.GetBitmap(qRCodeAPIResponse.qrcode);
+                tileIcon = QRCodeBitmap.GetBitmap(qRCodeAPIResponse.qrcode);
             }
             // leave QRCode field as empty first
             Marshal.WriteIntPtr(phbmp, tileIcon.GetHbitmap());
@@ -489,8 +478,6 @@ namespace WindowsCredentialProviderTest
 
         public string _PromptPassword()
         {
-            _SetStatusText("Prompt Password...");
-
             if (newPassword == null)
             {
                 credentialProviderCredentialEvents.SetFieldState(
@@ -539,44 +526,43 @@ namespace WindowsCredentialProviderTest
 
             _SetStatusText("Finish Register");
 
-            //await Task.Run(_NotifyIdenkey);
+            await Task.Run(_NotifyIdenkey);
         }
 
         public async Task _NotifyIdenkey()
         {
             _SetStatusText("Notify...");
             CreateTxnAPIResponse createTxnAPIResponse = await internetConnect.FetchCreateTxn(idenkeyID, _SetStatusText);
-            _SetStatusText(createTxnAPIResponse.msg);
-            //if (createTxnAPIResponse.status != "0000")
-            //{
-            //    _SetStatusText(createTxnAPIResponse.msg);
-            //    return;
-            //}
+            if (createTxnAPIResponse.status != "0000")
+            {
+                _SetStatusText(createTxnAPIResponse.msg);
+                return;
+            }
 
-            //string txnid = createTxnAPIResponse.txnid;
-            //_SetStatusText($"Confirm login with Txnid: {txnid} in your phone");
+            string txnid = createTxnAPIResponse.txnid;
+            _SetStatusText($"Confirm login with Txnid: {txnid} in your phone");
 
-            //// Keep Checking Status for 1 minute with an interval of 3 seconds
-            //for (int i = 0; i < 20; i++)
-            //{
-            //    APIResponse aPIResponse = await internetConnect.FetchCheckTxn(idenkeyID, txnid);
-            //    if (aPIResponse.status == "0000") // success
-            //    {
-            //        break;
-            //    }
-            //    else if (aPIResponse.status == "0001") // pending
-            //    {
-            //        await Task.Delay(3000);
-            //    }
-            //    else
-            //    {
-            //        _SetStatusText(aPIResponse.msg);
-            //        return;
-            //    }
-            //}
+            // Keep Checking Status for 1 minute with an interval of 3 seconds
+            for (int i = 0; i < 20; i++)
+            {
+                APIResponse aPIResponse = await internetConnect.FetchCheckTxn(idenkeyID, txnid);
+                if (aPIResponse.status == "0000") // success
+                {
+                    break;
+                }
+                else if (aPIResponse.status == "0001") // pending
+                {
+                    await Task.Delay(3000);
+                }
+                else
+                {
+                    _SetStatusText(aPIResponse.msg);
+                    return;
+                }
+            }
 
-            //permissionGranted = true;
-            //_SetStatusText("Finish Notify");
+            permissionGranted = true;
+            _SetStatusText("Finish Notify");
         }
 
         public int GetSerialization(out _CREDENTIAL_PROVIDER_GET_SERIALIZATION_RESPONSE pcpgsr,

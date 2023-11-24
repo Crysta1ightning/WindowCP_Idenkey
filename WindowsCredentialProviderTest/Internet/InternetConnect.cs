@@ -1,10 +1,13 @@
-﻿using System;
+﻿// Uncomment for mock
+#define MOCK
+using System;
 using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Threading.Tasks;
 using System.Net;
 using Newtonsoft.Json;
 using System.Text;
+using ZXing;
 
 namespace WindowsCredentialProviderTest.Internet
 {
@@ -42,17 +45,27 @@ namespace WindowsCredentialProviderTest.Internet
 
         }
 
-        public async Task<QRCodeAPIResponse> FetchQRCode(string userSid)
+        // FetchQRCode is not async because setFieldBitmap is interfaced incorrectly in C#
+        // So while it is not a good practice to use GetAwaiter.GetResult(), I have no other choice :(
+        public QRCodeAPIResponse FetchQRCode(string userSid)
         {
+#if MOCK    
+            QRCodeAPIResponse qRCodeAPIResponse = new QRCodeAPIResponse();
+            qRCodeAPIResponse.qrcode = "IDG - FIDO://eyJzdGFuIjoiMEZDQzFENjVENkMzOTE2NzJEQzYzODdDNTE0RERDODAiLCJ0eGRhdGVUaW1lIjoiMjAyMjA2MjIxMDIwMzAiLCJpZCI6IkphY2tIdSIsImNoYW5uZWwiOiJTUCJ9";
+            qRCodeAPIResponse.status = "0000";
+            qRCodeAPIResponse.msg = "";
+            return qRCodeAPIResponse;
+#else
+
             try
             {
                 DateTime currentDateTime = DateTime.Now;
                 string formattedDateTime = currentDateTime.ToString("yyyyMMddHHmmss");
                 string apiUrl = "https://si.toppanidgate.com/iDenKeyFidoKlGW/GetRegQR";
                 string requestBody = $"{{\"txdatetime\": \"{formattedDateTime}\", " +
-                    $"\"id\": \"{userSid}\", " +
+                    $"\"id\": \"{userSid}7777\", " +
                     $"\"channel\": \"{channel}\"}}";
-                string result = await FetchAPIPost(apiUrl, requestBody);
+                string result = FetchAPIPost(apiUrl, requestBody).GetAwaiter().GetResult();
 
                 QRCodeAPIResponse qRCodeAPIResponse = JsonConvert.DeserializeObject<QRCodeAPIResponse>(result);
                 if (qRCodeAPIResponse == null || qRCodeAPIResponse.status == null 
@@ -77,20 +90,29 @@ namespace WindowsCredentialProviderTest.Internet
                     APIResponse.ErrorResponse($"FetchQRCode An unexpected error occurred: {ex.Message}"));
                 return errorResponse;
             }
+#endif
         }
 
         public async Task<CheckQRResponse> FetchCheckQR(string userSid)
         {
+#if MOCK
+            await Task.Delay(4000);
+            CheckQRResponse checkQRResponse = new CheckQRResponse();
+            checkQRResponse.idgateid = "123456";
+            checkQRResponse.status = "0000";
+            checkQRResponse.msg = "";
+            return checkQRResponse;
+#else
             try
             {
                 string apiUrl = serverName + "/CheckRegStatus";
-                string requestBody = $"{{ \"id\": \"{userSid}\", " +
+                string requestBody = $"{{ \"id\": \"{userSid}7777\", " +
                     $"\"channel\": \"{channel}\"}}";
                 string result = await FetchAPIPost(apiUrl, requestBody);
 
                 CheckQRResponse checkQRResponse = JsonConvert.DeserializeObject<CheckQRResponse>(result);
                 if (checkQRResponse == null || checkQRResponse.status == null 
-                    || checkQRResponse.msg == null || checkQRResponse.idgateid == null)
+                    || checkQRResponse.msg == null || (checkQRResponse.status == "0000" && checkQRResponse.idgateid == null))
                 {
                     throw new Exception("is Null");
                 }
@@ -110,10 +132,19 @@ namespace WindowsCredentialProviderTest.Internet
                     APIResponse.ErrorResponse($"FetchCheckQR An unexpected error occurred: {ex.Message}"));
                 return errorResponse;
             }
+#endif
         }
 
         public async Task<CreateTxnAPIResponse> FetchCreateTxn(string userSid, Action<string> setStatusText)
         {
+#if MOCK
+            await Task.Delay(2000);
+            CreateTxnAPIResponse createTxnAPIResponse = new CreateTxnAPIResponse();
+            createTxnAPIResponse.txnid = "654321";
+            createTxnAPIResponse.status = "0000";
+            createTxnAPIResponse.msg = "";
+            return createTxnAPIResponse;
+#else
             try
             {
                 string apiUrl = serverName + "/CreateTxn";
@@ -121,15 +152,12 @@ namespace WindowsCredentialProviderTest.Internet
                     $"\"channel\": \"{channel}\"}}";
                 string result = await FetchAPIPost(apiUrl, requestBody, setStatusText);
 
-                //CreateTxnAPIResponse createTxnAPIResponse = JsonConvert.DeserializeObject<CreateTxnAPIResponse>(result);
-                //if (createTxnAPIResponse == null || createTxnAPIResponse.status == null 
-                //    || createTxnAPIResponse.msg == null || createTxnAPIResponse.txnid == null)
-                //{
-                //    throw new Exception("is Null");
-                //}
-                CreateTxnAPIResponse createTxnAPIResponse = new CreateTxnAPIResponse();
-                createTxnAPIResponse.status = "0000";
-                createTxnAPIResponse.msg = "Hello World";
+                CreateTxnAPIResponse createTxnAPIResponse = JsonConvert.DeserializeObject<CreateTxnAPIResponse>(result);
+                if (createTxnAPIResponse == null || createTxnAPIResponse.status == null
+                    || createTxnAPIResponse.msg == null || createTxnAPIResponse.txnid == null)
+                {
+                    throw new Exception("is Null");
+                }
                 return createTxnAPIResponse;
             }
             catch (HttpRequestException ex)
@@ -146,10 +174,18 @@ namespace WindowsCredentialProviderTest.Internet
                     APIResponse.ErrorResponse($"FetchCreateTxn An unexpected error occurred: {ex.Message}"));
                 return errorResponse;
             }
+#endif
         }
 
         public async Task<APIResponse> FetchCheckTxn(string userSid, string txnid)
         {
+#if MOCK
+            await Task.Delay(4000);
+            APIResponse aPIResponse = new APIResponse();
+            aPIResponse.status = "0000";
+            aPIResponse.msg = "";
+            return aPIResponse;
+#else
             try
             {
                 string apiUrl = serverName + "/CheckTxnStatus";
@@ -177,6 +213,7 @@ namespace WindowsCredentialProviderTest.Internet
                 APIResponse errorResponse = APIResponse.ErrorResponse($"FetchCheckTxn An unexpected error occurred: {ex.Message}");
                 return errorResponse;
             }
+#endif
         }
 
         private async Task<string> FetchAPIPost(string apiUrl, string requestBody)
